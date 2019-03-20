@@ -122,6 +122,9 @@ public class S3SinkConnectorConfig extends StorageSinkConnectorConfig {
   public static final String S3_PROXY_PASS_CONFIG = "s3.proxy.password";
   public static final Password S3_PROXY_PASS_DEFAULT = new Password(null);
 
+  public static final String S3_PROXY_USE_EXPECT_CONTINUE_CONFIG = "s3.proxy.use.expect.continue";
+  public static final Boolean S3_PROXY_USE_EXPECT_CONTINUE_DEFAULT = true;
+
   /**
    * Maximum back-off time when retrying failed requests.
    */
@@ -414,6 +417,23 @@ public class S3SinkConnectorConfig extends StorageSinkConnectorConfig {
           S3_PROXY_PASS_CONFIG,
           Type.PASSWORD,
           S3_PROXY_PASS_DEFAULT,
+          Importance.LOW,
+          "S3 Proxy Password. This property is meant to be used only if you"
+              + " need to access S3 through a proxy. Using ``"
+              + S3_PROXY_PASS_CONFIG
+              + "`` instead of embedding the username and password in ``"
+              + S3_PROXY_URL_CONFIG
+              + "`` allows the password to be hidden in the logs.",
+          group,
+          ++orderInGroup,
+          Width.LONG,
+          "S3 Proxy Password"
+      );
+
+      configDef.define(
+          S3_PROXY_USE_EXPECT_CONTINUE_CONFIG,
+          Type.BOOLEAN,
+          S3_PROXY_USE_EXPECT_CONTINUE_DEFAULT,
           Importance.LOW,
           "S3 Proxy Password. This property is meant to be used only if you"
               + " need to access S3 through a proxy. Using ``"
