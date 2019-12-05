@@ -29,19 +29,21 @@ import com.amazonaws.services.s3.model.SSEAlgorithm;
 import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.SSECustomerKey;
 import com.amazonaws.services.s3.model.UploadPartRequest;
-import io.confluent.connect.s3.S3SinkConnectorConfig;
-import io.confluent.connect.storage.common.util.StringUtils;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.parquet.io.PositionOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+
+import io.confluent.connect.s3.S3SinkConnectorConfig;
+import io.confluent.connect.s3.storage.memmgr.MemoryPool;
+import io.confluent.connect.s3.storage.memmgr.Part;
+import io.confluent.connect.storage.common.util.StringUtils;
 
 /**
  * Output stream enabling multi-part uploads of Kafka records.
@@ -61,7 +63,9 @@ public class S3OutputStream extends PositionOutputStream {
   private final int partSize;
   private final CannedAccessControlList cannedAcl;
   private boolean closed;
-  private ByteBuffer buffer;
+  // bad bad way of allocating. only for mvp
+  private MemoryPool memoryPool = new MemoryPool(4096);
+  private Part buffer;
   private MultipartUpload multiPartUpload;
   private final CompressionType compressionType;
   private volatile OutputStream compressionFilter;
@@ -81,7 +85,7 @@ public class S3OutputStream extends PositionOutputStream {
     this.partSize = conf.getPartSize();
     this.cannedAcl = conf.getCannedAcl();
     this.closed = false;
-    this.buffer = ByteBuffer.allocate(this.partSize);
+    this.buffer = memoryPool.allocate(this.partSize);
     this.progressListener = new ConnectProgressListener();
     this.multiPartUpload = null;
     this.compressionType = conf.getCompressionType();
@@ -135,7 +139,7 @@ public class S3OutputStream extends PositionOutputStream {
       multiPartUpload = newMultipartUpload();
     }
     try {
-      multiPartUpload.uploadPart(new ByteArrayInputStream(buffer.array()), size);
+      multiPartUpload.uploadPart(buffer.asInputStream(), size);
     } catch (Exception e) {
       if (multiPartUpload != null) {
         multiPartUpload.abort();
@@ -237,7 +241,7 @@ public class S3OutputStream extends PositionOutputStream {
       );
     }
 
-    public void uploadPart(ByteArrayInputStream inputStream, int partSize) {
+    public void uploadPart(InputStream inputStream, int partSize) {
       int currentPartNumber = partETags.size() + 1;
       UploadPartRequest request = new UploadPartRequest()
                                             .withBucketName(bucket)
